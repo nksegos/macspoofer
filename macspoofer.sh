@@ -1,8 +1,10 @@
 #!/bin/bash
 
-if [ "$EUID" != "0" ];
+IFACE_FLAG=0
+
+if [[ "$EUID" != "0" ]];
 then
-	echo "This script must be run as root" 1>&2
+    echo "This script must be run as root" 1>&2
 	exit
 fi
 
@@ -23,26 +25,20 @@ change_originalmac()
 	echo 'New Mac =	' ${NEWMAC}
 }
 
+#check if there's a mismatch in the interfaces file
+check_interfaces_file()
+{
+IFACE_EXISTS="$(grep -cw ${INTERFACE} /etc/network/interfaces)"
+if [[ ${IFACE_EXISTS} -ne 2 ]] || [[ ${IFACE_EXISTS} -ne 3 ]];
+then
+	IFACE_FLAG=1
+	set_newmac
+else
+	set_newmac
+fi
+}
+
 set_newmac()
-{
-	ip link set dev ${INTERFACE} down
-	ip link set dev ${INTERFACE} address ${NEWMAC}
-	ip link set dev ${INTERFACE} up
-}
-
-#Check if mac address has changed
-check()
-{
-	CHECKMASK=`ip addr show ${INTERFACE} | awk 'NR==2{print $2}'`
-	if [ ${CHECKMASK} == ${NEWMAC} ];
-	then
-		echo "Mac address has changed"
-	else
-		echo "Failed"
-	fi 
-}
-
-setPermanently()
 {
 	echo "Set new Mac Address permanently"
 	cat << EOF > /etc/network/interfaces
@@ -52,17 +48,26 @@ setPermanently()
 auto lo
 iface lo inet loopback
 auto ${INTERFACE}
-#Your static network configuration  
+#Your static network configuration
 iface ${INTERFACE} inet dhcp
 	hwaddress ether ${NEWMAC}
 EOF
-	systemctl restart networking
-	ip link set dev ${INTERFACE} down
-	ip link set dev ${INTERFACE} up
+	if [[ ${IFACE_FLAG} -eq 1 ]];
+	then
+		systemctl restart networking
+		ip link set dev ${INTERFACE} up
+	else
+		systemctl restart networking
+		ip link set dev ${INTERFACE} down
+		ip link set dev ${INTERFACE} up
+	fi
+}
+update_address_table()
+{
+echo ${ORIGINALMAC} ',' ${NEWMAC} | ssh user_with_cert@dhcp_server_ip -T "cat >> ~/linux_hosts.txt"
 }
 
 get_interface
 change_originalmac
-set_newmac
-check
-setPermanently
+check_interfaces_file
+update_address_table
