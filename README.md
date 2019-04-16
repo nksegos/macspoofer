@@ -1,4 +1,5 @@
 ##MacSpoofer For Mass Deployments
+
 This script permanently spoofs the MAC address of a linux machine and adds an entry to a remote file detailing the original MAC and the new one.
 I made some changes to [dtsioumas' original script](https://github.com/dtsioumas/macspoofer/) just to make the whole process more clear and simpler as my modifications aim specifically for a mass deployment usecase for fresh installs.
 
